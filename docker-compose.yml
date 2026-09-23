@@ -1,0 +1,85 @@
+# ---------------------------------------------------------------------------
+# 组件层：PostgreSQL(ParadeDB) + Redis
+#
+# 定位：本文件只负责「有状态、版本敏感、装起来烦」的组件，不管项目代码。
+#       代码走 GitHub + 本地 uv / pnpm（保留热重载与 langgraph dev Studio）。
+#
+# 用法：
+#   docker compose up -d                 起 PG + Redis
+#   docker compose ps                    看健康状态
+#   docker compose logs -f postgres      看 PG 日志
+#   docker compose down                  停（保留数据卷）
+#   docker compose down -v               ⚠️ 连数据卷一起删，库全清空
+#
+# 变量默认值见根目录 .env.example / 本机 .env（PG_PASSWORD / PG_DATABASE / PG_PORT / REDIS_PORT）。
+# ---------------------------------------------------------------------------
+
+services:
+  # ---------------------------------------------------------------------
+  # ParadeDB = PostgreSQL + pg_search(BM25/Tantivy) + pgvector
+  # 选它而不是官方 postgres 镜像的原因：customer_service/rag/ingest.py 真的执行
+  #   CREATE INDEX ... USING bm25 (id, text) WITH (key_field='id', ...)
+  # 以及 CREATE EXTENSION vector，官方 postgres 镜像这两个都没有。
+  #
+  # tag 与素材对齐：本机 .env 注释记录 pg_search 0.25.9 / pgvector 0.8.4，
+  # 故锁 0.25.9（tag 不存在时先跑 `docker pull paradedb/paradedb:latest` 再改成实际版本）。
+  # 镜像预装：pg_search / pgvector / postgis / pg_ivm / pg_cron
+  # 注意：pg_cron 只预配置在默认 postgres 库，业务库 pg4mysql 里用不了，
+  #       本项目也没用到它，别在 init.sql 里 CREATE EXTENSION pg_cron。
+  # ---------------------------------------------------------------------
+  postgres:
+    image: paradedb/paradedb:0.25.9
+    container_name: tcs-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${PG_USER:-postgres}
+      POSTGRES_PASSWORD: ${PG_PASSWORD:-pgpass}
+      POSTGRES_DB: ${PG_DATABASE:-pg4mysql}
+      # BM25 索引要按硬件并发度起 worker，容器里跟随宿主机
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    ports:
+      # 宿主机端口沿用 5433（与 DATABASE_URL 一致），避免和朋友本机已有的 5432 实例打架
+      - "${PG_PORT:-5433}:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/00-init.sql:ro
+    healthcheck:
+      # 朋友侧的「起了没」判据：healthy 才继续跑 apply_schema.py
+      test: ["CMD-SHELL", "pg_isready -U ${PG_USER:-postgres} -d ${PG_DATABASE:-pg4mysql}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+    shm_size: 256mb          # PG 并行查询用共享内存，容器默认 64m 偏小
+
+  # ---------------------------------------------------------------------
+  # Redis：P8 计划里用于会话缓存 / 限流 / 任务队列
+  # 现状：代码里还没有任何 redis 引用，本服务是「提前备好、等 P8 接线」。
+  # 因此不设密码（本机开发），只监听回环发布端口；真要跨机共享再加 requirepass。
+  # ---------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: tcs-redis
+    restart: unless-stopped
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"                # AOF 持久化：容器重启不丢队列/缓存
+      - --appendfsync
+      - everysec
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
+
+volumes:
+  pg_data:
+    name: tcs_pg_data
+  redis_data:
+    name: tcs_redis_data

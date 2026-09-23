@@ -1,0 +1,38 @@
+[project]
+name = "text-customer-service"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "langchain>=1.3.17",
+    "langchain-openai>=1.1.0",
+    "langgraph>=1.2.11",
+    "llama-index-retrievers-bm25>=0.8.0",
+    "python-dotenv>=1.2.3",
+]
+
+# 可选依赖：按 docs/IMPLEMENTATION_PLAN.md 的阶段用到再装，不污染基础环境
+# 用法：uv sync --extra rag  （可叠加多个 --extra）
+[project.optional-dependencies]
+rag = [                                  # P1  RAG 知识库（存储全走 PG）
+    "llama-index-core",
+    "llama-index-embeddings-openai",      # embedding 走 DashScope 兼容端点
+    "llama-index-llms-dashscope",         # LLM 用百炼原生集成（OpenAI 包装类不支持百炼模型名）
+    "llama-index-vector-stores-postgres", # PGVectorStore（需 pgvector 扩展）
+    "llama-index-storage-docstore-postgres", # PostgresDocumentStore
+    "llama-index-storage-index-store-postgres", # PostgresIndexStore
+    "llama-index-postprocessor-dashscope-rerank", # 百炼 qwen3-rerank 重排序集成
+    "jieba",                                      # 中文 BM25 分词
+]
+lightrag = ["lightrag-hku"]             # P1+ LightRAG 对照实验（可选）
+memory = [                              # P2  会话持久化（PG）
+    "langgraph-checkpoint-postgres",
+    "psycopg[binary]",
+]
+api = ["fastapi", "uvicorn"]            # P7  对外 HTTP 服务
+
+# 开发工具组：`uv sync` 默认会装；langgraph dev 本地服务（UI 的对接端）靠它
+[dependency-groups]
+dev = [
+    "colorama>=0.4.6",
+    "langgraph-cli[inmem]",
+]

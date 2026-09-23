@@ -1,0 +1,37 @@
+# ---------------------------------------------------------------------------
+# 密钥红线：任何 .env 都不许入库，只留 .env.example 模板
+# 注意 .env / .env.* 只匹配任意一级目录下的这一层，所以用 **/ 前缀覆盖所有子目录
+# （customer_service/.env、customer_service/.env.bak-* 曾因只写了 `.env` 而漏网）
+# ---------------------------------------------------------------------------
+**/.env
+**/.env.*
+**/.env.local
+!.env.example
+!**/.env.example
+
+# Python
+.venv/
+**/__pycache__/
+*.pyc
+*.pyo
+
+# LangGraph 本地服务运行时产物
+.langgraph_api/
+
+# harness / 评测 / 临时验证目录（不是项目代码）
+.harness/
+.jbeval/
+.tmp_verify/
+
+# Node / 前端
+node_modules/
+.turbo/
+dist/
+.vite/
+
+# IDE / 系统
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db

@@ -1,0 +1,6 @@
+{
+  "dependencies": ["."],
+  "graphs": {
+    "customer_service": "./customer_service/graph.py:build_graph"
+  }
+}
