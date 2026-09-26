@@ -14,7 +14,7 @@
 
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, BackgroundTasks
 from langchain_core.messages import HumanMessage
 from langgraph.types import Command
 from pydantic import BaseModel
@@ -107,6 +107,19 @@ def resume(req: ResumeRequest) -> dict:
         config={"configurable": {"thread_id": req.session_id}},
     )
     return _respond(req.session_id, out)
+
+@app.post("/webhook/langfuse-experiment")
+def langfuse_experiment(payload: dict, bg: BackgroundTasks):
+    # 文档要求：快速返回 2xx，实验异步跑
+    cfg = payload.get("config") or {}
+    bg.add_task(run_eval, dataset_name=payload["datasetName"],
+                run_name=cfg.get("run_name"))
+    return {"status": "accepted"}
+
+def run_eval(dataset_name, run_name):
+    from customer_service.analytics.langfuse_runner import run
+    run(dataset_name=dataset_name, run_name=run_name)   # 现有 runner 原样复用
+
 
 
 if __name__ == "__main__":

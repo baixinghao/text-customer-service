@@ -1,5 +1,6 @@
 -- 真实库表结构（存储红线：一律走 PostgreSQL）
 -- 用法：PYTHONIOENCODING=utf-8 .venv/Scripts/python db/apply_schema.py
+--       初始数据：PYTHONIOENCODING=utf-8 .venv/Scripts/python db/seed.py（db/seed.sql）
 -- 设计原则：Mock（tools/ 顶部常量）按计划逐步换成这里的真表，换一张删一段 Mock
 
 -- ==========================================================================
@@ -71,3 +72,51 @@ CREATE TABLE IF NOT EXISTS ticket_events (
 );
 
 CREATE INDEX IF NOT EXISTS idx_ticket_events_ticket ON ticket_events (ticket_no, id);
+
+-- ==========================================================================
+-- 订单域：app_user / product / orders / order_item
+-- 服务对象：tools/order_tools.py（query_order / list_orders_by_email）；
+--          售后 apply_refund 的金额与商品快照也复用同一入口 get_order()
+-- 初始数据见 db/seed.sql
+-- ==========================================================================
+
+-- 用户表：email 是 list_orders_by_email 的查询入口
+-- 刻意不加 phone：与 aftersale_tools.apply_refund 的注释约定一致
+-- （"app_user 无 phone 字段，留空待接入真实用户体系"）
+CREATE TABLE IF NOT EXISTS app_user (
+    id       BIGINT PRIMARY KEY,
+    nickname TEXT NOT NULL,
+    email    TEXT NOT NULL UNIQUE
+);
+
+-- 商品表：title/price 必须与 rag/knowledge/sentence/products.md 语料一致，
+-- 否则售前推荐的价格和订单明细里的价格会对不上
+CREATE TABLE IF NOT EXISTS product (
+    id    BIGINT PRIMARY KEY,
+    title TEXT NOT NULL UNIQUE,
+    price NUMERIC(10, 2) NOT NULL CHECK (price >= 0)
+);
+
+-- 订单表。status 是英文枚举，对外展示走 order_tools.STATUS_ZH 翻译；
+-- amount 是下单时刻的快照（商品改价不影响历史订单），不冗余计算
+CREATE TABLE IF NOT EXISTS orders (
+    id         BIGINT PRIMARY KEY,
+    user_id    BIGINT NOT NULL REFERENCES app_user (id),
+    status     TEXT NOT NULL DEFAULT 'created',
+    amount     NUMERIC(10, 2) NOT NULL CHECK (amount >= 0),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    -- 与 order_tools.STATUS_ZH 的键集保持一致，改这里要一起改
+    CONSTRAINT ck_orders_status CHECK (status IN ('created', 'paid', 'shipped', 'closed', 'refunded'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_orders_user ON orders (user_id, created_at DESC);
+
+-- 订单明细：一单多品
+CREATE TABLE IF NOT EXISTS order_item (
+    id         BIGSERIAL PRIMARY KEY,
+    order_id   BIGINT NOT NULL REFERENCES orders (id) ON DELETE CASCADE,
+    product_id BIGINT NOT NULL REFERENCES product (id),
+    qty        INTEGER NOT NULL CHECK (qty > 0)
+);
+
+CREATE INDEX IF NOT EXISTS idx_order_item_order ON order_item (order_id);

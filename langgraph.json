@@ -2,5 +2,8 @@
   "dependencies": ["."],
   "graphs": {
     "customer_service": "./customer_service/graph.py:build_graph"
+  },
+  "http": {
+    "app": "./customer_service/experiment_webhook.py:app"
   }
 }

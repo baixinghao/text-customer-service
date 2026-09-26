@@ -103,3 +103,10 @@ cd ui && pnpm dev               # http://localhost:5173
 - [x] P7 FastAPI 对外服务
 - [ ] P8 Redis：会话缓存 / 限流 / 任务队列（容器已由 compose 备好，代码未接线）
 - [ ] 远期：deepagents 重构专家、router 置信度兜底、真实订单库
+
+## 评测主线（丽姐接手，详见 docs/EVALUATION_PLAN.md）
+
+- [ ] E1 观测接线：OTel → Langfuse（栈已容器化，只缺应用侧埋点）
+- [ ] E2 Agent 功能质检：跑通 evaluator 拿基线（顺带完成 P6 验收），用例外置 + 扩转人工用例
+- [ ] E3 Ragas 专项：faithfulness / answer_relevancy / context_precision + 编造率/误杀率红线
+- [ ] E4 回归门禁：改 prompt/模型/阈值必跑 E2+E3，线上 trace 回灌数据集

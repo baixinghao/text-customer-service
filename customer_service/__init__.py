@@ -7,6 +7,10 @@ import os
 os.environ["LANGCHAIN_TRACING_V2"] = "false"
 os.environ.pop("LANGCHAIN_API_KEY", None)  # 顺手摘掉 key，双保险
 
+from customer_service.tracing import init_tracing
+
+init_tracing()  # OTel→Langfuse 自动埋点；未设 OTEL_EXPORTER_OTLP_ENDPOINT 时静默跳过
+
 from customer_service.graph import build_graph
 
 __all__ = ["build_graph"]

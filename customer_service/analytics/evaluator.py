@@ -213,7 +213,7 @@ _TURN_SCORE_SCHEMA: dict = {
         },
         "comment": {
             "type": "string",
-            "description": "两项总分 ≤4 时一句话指出主要问题；否则空串",
+            "description": "两项总分 ≤4 或任一单项 ≤2 时一句话指出主要问题；否则空串",
         },
     },
     "required": ["relevance", "accuracy", "comment"],
@@ -234,7 +234,7 @@ _ANCHORED_RUBRIC = """\
 - 3：大体一致，个别细节无据展开或遗漏要点
 - 1：含与依据矛盾的事实、编造数字/金额/时限、谎称系统动作
 
-comment：两项总分 ≤4 时必须用一句话指出主要问题；否则输出空串。
+comment：两项总分 ≤4 或任一单项 ≤2 时必须用一句话指出主要问题；否则输出空串。
 """
 
 
@@ -301,8 +301,12 @@ def _check_turn(turn: dict, out: dict) -> tuple[list[str], dict | None]:
     soft_points: list[str] = []
     for p in turn.get("expect_points", []):
         if p.startswith("="):
-            # "|" 分隔多形态（如 "=7天|七天"），任一命中即通过
-            if not any(variant in normalized for variant in p[1:].split("|")):
+            # "|" 分隔多形态；外层括号只是分组符，先剥掉
+            # （不剥会拆出 "(7天"、"七天）" 这种带括号的形态，永远匹配不上）
+            spec = p[1:]
+            if spec.startswith("(") and spec.endswith(")"):
+                spec = spec[1:-1]
+            if not any(variant in normalized for variant in spec.split("|")):
                 problems.append(f"机械要点缺失：{p}")
         else:
             soft_points.append(p)
@@ -340,8 +344,9 @@ def run_evaluation(only: str | None = None) -> None:
                 score_sum["relevance"] += scores.get("relevance", 0)
                 score_sum["accuracy"] += scores.get("accuracy", 0)
                 score_n += 1
-                if (scores.get("relevance", 5) + scores.get("accuracy", 5)) <= 4 \
-                        and scores.get("comment"):
+                rel, acc = scores.get("relevance", 5), scores.get("accuracy", 5)
+                # 与 langfuse_runner 同一上浮规则：总分 <=4 或单维 <=2
+                if (rel + acc <= 4 or min(rel, acc) <= 2) and scores.get("comment"):
                     failures.append(
                         f"{case['name']} 第{i}轮 裁判低分：{scores['comment']}")
             total_turns += 1

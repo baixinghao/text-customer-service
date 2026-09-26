@@ -29,10 +29,22 @@ memory = [                              # P2  会话持久化（PG）
     "psycopg[binary]",
 ]
 api = ["fastapi", "uvicorn"]            # P7  对外 HTTP 服务
+obs = [                                 # E1  OTel → Langfuse 观测（docs/EVALUATION_PLAN.md）
+    "opentelemetry-sdk",
+    "opentelemetry-exporter-otlp-proto-http",
+    "openinference-instrumentation-langchain",
+    "langfuse>=3",                       # E2  数据集/跑批管理（Dataset 在平台，代码只留 runner）
+]
+eval = [                                # E3  Ragas 专项评测
+    "ragas>=0.2",
+    "datasets",
+    "langchain-community>=0.3,<0.4",     # ragas 的 llms.base 引它；0.4 删了 vertexai 模块会炸（实测）
+]
 
 # 开发工具组：`uv sync` 默认会装；langgraph dev 本地服务（UI 的对接端）靠它
 [dependency-groups]
 dev = [
     "colorama>=0.4.6",
     "langgraph-cli[inmem]",
+    "psycopg2-binary>=2.9",   # db/apply_schema.py 用 psycopg2 直连 PG 建表
 ]

@@ -23,6 +23,9 @@
 .jbeval/
 .tmp_verify/
 
+# 运行时日志产物
+logs/
+
 # Node / 前端
 node_modules/
 .turbo/

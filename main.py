@@ -5,12 +5,14 @@
 """
 
 from customer_service.graph import build_graph
+from customer_service.tracing import bind_session
 
 
 def main():
     graph = build_graph()
     # 同一 thread_id 下的多轮对话共享 checkpointer 记忆；换个 id 就是新会话
-    config = {"configurable": {"thread_id": "cli-demo-1"}}
+    thread_id = "cli-demo-1"
+    config = {"configurable": {"thread_id": thread_id}}
 
     print("智能客服已上线，输入 quit 退出\n")
     while True:
@@ -18,7 +20,8 @@ def main():
         if not question or question.lower() in ("quit", "exit"):
             break
 
-        result = graph.invoke({"messages": [("user", question)]}, config)
+        with bind_session(thread_id):
+            result = graph.invoke({"messages": [("user", question)]}, config)
         print(f"客服[{result.get('active_agent', '?')}]: {result['messages'][-1].content}\n")
 
 

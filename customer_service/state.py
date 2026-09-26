@@ -1,12 +1,15 @@
 """全局共享 State：父图与所有专家子图同构（同一套 schema）。
 
 - messages: 会话历史，add_messages 归并，父子图天然互通（黑板模式）
-- active_agent: 当前接待的专家节点名。router 首轮写入，handoff 时更新；
-  后续轮次 router 直接放行，不再重复意图识别
+- active_agent: 当前接待的专家节点名。router 每轮意图识别定首发时刷新，
+  轮内 handoff 接力时切换；output_guard 打回重答靠它 goto 原专家
 - user_phone: 用户联系电话（P4 放开）。工单工具的入单依据，由外层写入
   （API 网关注入 / CLI --phone 参数），LLM 工具签名里不出现它
 - retry_count: 输出护栏打回重答的次数（P5 放开，默认 0）。到上限放行兜底
   话术防死循环；通过一次即清零
+- final_reply: 本轮最终答复文本（output_guard 通过/兜底时写入）。给观测侧的
+  根 span 一个干净的答复字段——Langfuse observation 级裁判只看得到目标 span
+  自己的数据，没有它裁判只能对着整坨 state JSON 自由心证
 """
 
 from langgraph.graph import MessagesState
@@ -16,6 +19,7 @@ class State(MessagesState):
     active_agent: str
     user_phone: str = ""    # 默认 ""：老 checkpoint 反序列化不炸（规划注释的约定）
     retry_count: int = 0    # 输出护栏的重试预算，通过后清零
+    final_reply: str = ""   # 本轮最终答复（output_guard 写入），观测裁判用
 
 
 # ── 规划字段（练到对应阶段再逐个放开，见 docs/IMPLEMENTATION_PLAN.md）──────────

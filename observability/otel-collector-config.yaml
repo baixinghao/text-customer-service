@@ -1,0 +1,29 @@
+# OTel Collector：收应用的 OTLP trace，转发到 Langfuse 的原生 OTel 端点
+# 认证用 Langfuse 项目的 public/secret key 做 Basic Auth（见 compose 的 INIT 配置）
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch:
+    timeout: 2s
+
+exporters:
+  otlp_http:
+    endpoint: http://langfuse-web:3000/api/public/otel
+    headers:
+      Authorization: Basic cGstbGYtdGNzLWRldi0wMDAxOnNrLWxmLXRjcy1kZXYtMDAwMQ==
+  # 原始 span 打到 collector 日志：docker logs -f tcs-otel-collector
+  debug:
+    verbosity: detailed
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlp_http, debug]

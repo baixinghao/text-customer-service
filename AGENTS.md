@@ -29,5 +29,6 @@
 - `ui/` 是官方 Agent Chat UI（Vite 版，已裁掉自带 TS 示例 agents），非练习区，可以直接改
 - 对接方式：`ui/apps/web/.env.local` 的 `VITE_API_URL` + `VITE_ASSISTANT_ID`
   指向根目录 `langgraph.json` 注册的图（`customer_service`）
-- 起服务：`.venv/Scripts/langgraph dev --no-browser`（:2024）+ `cd ui && pnpm dev`（:5173）
+- 起服务：`.venv/Scripts/langgraph dev --no-browser --port 80`（**必须 80**：Langfuse
+  评测 webhook 只放行 80/443，挂在 langgraph dev 的自定义路由上）+ `cd ui && pnpm dev`（:5173）
 - Windows 坑：`langgraph dev` 需要 `colorama`（已在 dev 组）；无全局 pnpm 时用 `corepack pnpm`

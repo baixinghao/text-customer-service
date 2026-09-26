@@ -6,8 +6,11 @@
 - get_faq_retriever_tool      → 常见问题问答对检索（search_faq）
 
 目录约定：
-- knowledge/  语料源文件（一个主题一个 md）
-- storage/    索引持久化目录（运行时生成，已入 .gitignore）
+- knowledge/  语料源文件（一个主题一个 md；qa/ 问答对、sentence/ 成篇文档）
+
+存储约定（2026-09-25 起）：一文档一套独立 PG 三件套（kb_{kind}_vectors /
+kb_{kind}_docstore / kb_{kind}_indexstore + kb_{kind}_bm25_idx），路由登记在
+ingest._CORPUS_ROUTES，表间零共享，杜绝跨语料检索污染。
 
 依赖：uv sync --extra rag（pyproject.toml 的 optional-dependencies.rag）。
 没装之前 import 本包会报 ModuleNotFoundError，属预期。

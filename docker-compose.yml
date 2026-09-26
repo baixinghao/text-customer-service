@@ -1,5 +1,5 @@
 # ---------------------------------------------------------------------------
-# 组件层：PostgreSQL(ParadeDB) + Redis
+# 组件层：PostgreSQL(ParadeDB) + Redis(redis-stack)
 #
 # 定位：本文件只负责「有状态、版本敏感、装起来烦」的组件，不管项目代码。
 #       代码走 GitHub + 本地 uv / pnpm（保留热重载与 langgraph dev Studio）。
@@ -11,8 +11,10 @@
 #   docker compose down                  停（保留数据卷）
 #   docker compose down -v               ⚠️ 连数据卷一起删，库全清空
 #
-# 变量默认值见根目录 .env.example / 本机 .env（PG_PASSWORD / PG_DATABASE / PG_PORT / REDIS_PORT）。
+# 变量默认值见根目录 .env.example（PG_PASSWORD / PG_DATABASE / PG_PORT / REDIS_PORT）。
 # ---------------------------------------------------------------------------
+
+name: tcs
 
 services:
   # ---------------------------------------------------------------------
@@ -21,8 +23,6 @@ services:
   #   CREATE INDEX ... USING bm25 (id, text) WITH (key_field='id', ...)
   # 以及 CREATE EXTENSION vector，官方 postgres 镜像这两个都没有。
   #
-  # tag 与素材对齐：本机 .env 注释记录 pg_search 0.25.9 / pgvector 0.8.4，
-  # 故锁 0.25.9（tag 不存在时先跑 `docker pull paradedb/paradedb:latest` 再改成实际版本）。
   # 镜像预装：pg_search / pgvector / postgis / pg_ivm / pg_cron
   # 注意：pg_cron 只预配置在默认 postgres 库，业务库 pg4mysql 里用不了，
   #       本项目也没用到它，别在 init.sql 里 CREATE EXTENSION pg_cron。
@@ -38,13 +38,15 @@ services:
       # BM25 索引要按硬件并发度起 worker，容器里跟随宿主机
       POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
     ports:
-      # 宿主机端口沿用 5433（与 DATABASE_URL 一致），避免和朋友本机已有的 5432 实例打架
+      # 宿主机端口沿用 5433（与 DATABASE_URL 一致），避免和本机已有的 5432 实例打架
       - "${PG_PORT:-5433}:5432"
     volumes:
-      - pg_data:/var/lib/postgresql/data
+      # PG18+ 镜像改了数据目录规则：挂父目录 /var/lib/postgresql，
+      # 数据实际落在 18/docker 子目录；挂老的 /var/lib/postgresql/data 会拒绝启动
+      - pg_data:/var/lib/postgresql
       - ./db/init.sql:/docker-entrypoint-initdb.d/00-init.sql:ro
     healthcheck:
-      # 朋友侧的「起了没」判据：healthy 才继续跑 apply_schema.py
+      # 「起了没」判据：healthy 才继续跑 apply_schema.py
       test: ["CMD-SHELL", "pg_isready -U ${PG_USER:-postgres} -d ${PG_DATABASE:-pg4mysql}"]
       interval: 5s
       timeout: 5s
@@ -53,22 +55,23 @@ services:
     shm_size: 256mb          # PG 并行查询用共享内存，容器默认 64m 偏小
 
   # ---------------------------------------------------------------------
-  # Redis：P8 计划里用于会话缓存 / 限流 / 任务队列
-  # 现状：代码里还没有任何 redis 引用，本服务是「提前备好、等 P8 接线」。
-  # 因此不设密码（本机开发），只监听回环发布端口；真要跨机共享再加 requirepass。
+  # Redis 用 redis-stack：自带 RediSearch（向量检索 FT.CREATE ... VECTOR）、
+  # RedisJSON、RedisTimeSeries、RedisBloom；裸 redis:7-alpine 没有向量能力，
+  # 后面 RAG/向量缓存要用 FT.* 命令全靠它。
+  #
+  # ⚠️ 不要自定义 command：redis-stack 靠入口脚本加载模块，
+  #    自己写 redis-server 启动命令会导致 RediSearch 不加载，向量功能直接废掉。
+  #    redis-stack 默认已开 AOF 持久化，数据落在 /data 卷。
+  #
+  # RedisInsight 网页管理台：http://localhost:8001 （看索引/向量数据很直观）
   # ---------------------------------------------------------------------
   redis:
-    image: redis:7-alpine
+    image: redis/redis-stack:7.4.0-v6
     container_name: tcs-redis
     restart: unless-stopped
-    command:
-      - redis-server
-      - --appendonly
-      - "yes"                # AOF 持久化：容器重启不丢队列/缓存
-      - --appendfsync
-      - everysec
     ports:
       - "${REDIS_PORT:-6379}:6379"
+      - "${REDIS_INSIGHT_PORT:-8001}:8001"
     volumes:
       - redis_data:/data
     healthcheck:

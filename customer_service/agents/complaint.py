@@ -2,7 +2,7 @@
 
 人设四步走（prompts.py 的 COMPLAINT_PROMPT）：道歉 → 共情 → 方案 → 时限，
 绝不与用户争辩。工具组合：工单两兄弟（create_ticket / query_ticket）+
-handoff 三件套（售前/订单/售后）+ 转人工。
+handoff 三件套（售前/订单/售后，轮内接力）+ 转人工。
 """
 
 from langchain.agents import create_agent
@@ -18,6 +18,7 @@ complaint_agent = create_agent(
     tools=[
         create_ticket,
         query_ticket,
+        # 轮内接力：自己这段干完、诉求跨域时才交接；轮级首发分流归 router
         make_handoff_tool(agent_name="presale_expert", description="用户情绪平复、转而咨询商品时，转接售前专家"),
         make_handoff_tool(agent_name="order_expert", description="用户要查订单、物流进度时，转接订单专家"),
         make_handoff_tool(agent_name="aftersale_expert", description="用户要办退款、退货、换货时，转接售后专家"),

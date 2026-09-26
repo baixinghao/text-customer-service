@@ -13,14 +13,14 @@
    （含人工答了什么），不会把坐席的话误读成用户提问
 2. resume 后 goto=END 而不是交还原专家——【修正】早期版本交还原专家，
    专家会把坐席已回答的问题再答一遍（双答，实测踩过）。坐席的话就是
-   本轮的答案；后续用户新消息由 router 凭 active_agent 直达原专家，
-   连续性不丢。若将来需要在人工答复后做质检等后处理，加专用节点，
+   本轮的答案；后续用户新消息由 router 重新判意图分流，连续性不丢。
+   若将来需要在人工答复后做质检等后处理，加专用节点，
    不要把专家当后置节点用
 
 配套接线（P3 剩余，不在本文件）：
 - graph.py: builder.add_node("human", human_node)
-- 触发：给各专家 make_handoff_tool(agent_name="human", ...)——注意转人工
-  工具【不要】改 active_agent（保留原专家，人工答完才能交还回去）
+- 触发：给各专家 make_human_handoff_tool(...)——注意转人工工具【不要】
+  改 active_agent（它得始终是真实专家节点名，output_guard 打回要靠它）
 - 跨进程恢复靠 P2 的 PostgresSaver，已就绪
 """
 
@@ -96,7 +96,7 @@ def _extract_response_text(response: HumanResponse | list[HumanResponse]) -> str
 def human_node(state: State) -> Command:
     """挂起图等人工坐席接管；resume 后把坐席回复写入历史，本轮直接 END 交卷。
 
-    下一轮用户消息凭 active_agent 直达原专家（见文件头决策 2）。
+    下一轮用户消息由 router 重新判意图分流（见文件头决策 2）。
     外层 resume 时必须传 HumanResponse（官方 UI 会自动按此格式发送）。
     """
     messages = state["messages"]
